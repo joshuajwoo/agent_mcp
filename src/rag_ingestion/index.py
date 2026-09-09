@@ -89,6 +89,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     args = parse_args()
     if args.max_contexts is not None and args.max_contexts <= 0:
         raise ValueError("--max-contexts must be positive")
@@ -110,7 +112,7 @@ def main() -> None:
     settings = Settings.from_environment()
     settings.validate_for_indexing()
     embedder = SentenceTransformer(settings.embedding_model)
-    vector_size = embedder.get_sentence_embedding_dimension()
+    vector_size = embedder.get_embedding_dimension()
     if vector_size is None:
         raise RuntimeError("Embedding model did not expose its vector dimension")
     client = QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key)

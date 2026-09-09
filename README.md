@@ -70,6 +70,40 @@ The local server has no client authentication. Keep it bound to loopback during
 development; Phase 3 should add deployment-appropriate access control before
 exposing it on the internet.
 
+## Deploy to Prefect Horizon
+
+Prefect Horizon is the selected Phase 3 host because it is maintained by the
+FastMCP team and provides managed HTTPS endpoints, authentication, and
+GitHub-driven redeployments. Before deploying, push the latest server changes
+to the repository's default branch. In Horizon, create a server from that
+repository using this entrypoint:
+
+```text
+src/rag_ingestion/server.py:mcp
+```
+
+Horizon detects this repository's `pyproject.toml` and installs its declared
+dependencies. Add these two runtime secrets in Horizon's deployment settings;
+do not commit them to the repository:
+
+```text
+QDRANT_URL
+QDRANT_API_KEY
+```
+
+Enable Horizon authentication before deploying. Horizon will provide an HTTPS
+Streamable HTTP endpoint in this form:
+
+```text
+https://your-server-name.fastmcp.app/mcp
+```
+
+Validate the entrypoint locally before deploy with:
+
+```powershell
+.\.venv\Scripts\fastmcp.exe inspect src\rag_ingestion\server.py:mcp
+```
+
 Create a Qdrant Cloud free cluster and export the values in `.env.example`,
 then run a small connectivity and embedding smoke test:
 

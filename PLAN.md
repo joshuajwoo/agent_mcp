@@ -55,7 +55,7 @@ out of scope for the first retrieval baseline.
       default
 - [x] Pick an embedding model (open-source via `sentence-transformers`, or
       API-based) and note the tradeoff
-- [ ] Batch-upsert into a Qdrant Cloud free cluster (1 GB RAM, 0.5 vCPU,
+- [x] Batch-upsert into a Qdrant Cloud free cluster (1 GB RAM, 0.5 vCPU,
       4 GB disk, single node, no credit card required)
 
 **Gotcha:** free Qdrant clusters suspend after a week of inactivity —
