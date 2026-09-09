@@ -39,17 +39,21 @@ Alternative (more "portfolio-personal", weaker on free eval data): a
 Wikipedia subset or arXiv abstracts dataset, framed as a domain-specific
 research assistant.
 
-**Decision:** _(fill in once chosen)_
+**Decision:** **SQuAD v1.1** (`rajpurkar/squad`). Its answerable
+question/context pairs and held-out validation split make a reproducible
+30-50 question evaluation set possible without manually authoring labels.
+SQuAD v2.0's unanswerable cases are useful for abstention evaluation, but are
+out of scope for the first retrieval baseline.
 
 ---
 
 ## Phase 1 — Data ingestion & indexing
 
-- [ ] Pull dataset via `datasets` library (`load_dataset(...)`)
-- [ ] Decide + document a chunking strategy (fixed-size+overlap vs.
+- [x] Pull dataset via `datasets` library (`load_dataset(...)`)
+- [x] Decide + document a chunking strategy (fixed-size+overlap vs.
       sentence-aware) — be ready to explain the choice, not just apply a
       default
-- [ ] Pick an embedding model (open-source via `sentence-transformers`, or
+- [x] Pick an embedding model (open-source via `sentence-transformers`, or
       API-based) and note the tradeoff
 - [ ] Batch-upsert into a Qdrant Cloud free cluster (1 GB RAM, 0.5 vCPU,
       4 GB disk, single node, no credit card required)
@@ -64,8 +68,8 @@ below.
 
 Build with FastMCP. Target 2-3 tools:
 
-- [ ] `search_documents(query, top_k)` — core semantic search
-- [ ] `filter_by_metadata(...)` — if the dataset has usable metadata
+- [x] `search_documents(query, top_k)` — core semantic search
+- [x] `filter_by_metadata(...)` — if the dataset has usable metadata
 - [ ] (optional) a re-rank step as a third tool
 
 Use **Streamable HTTP transport** (current standard for remote MCP
