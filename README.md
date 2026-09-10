@@ -130,3 +130,26 @@ clusters can suspend after inactivity, so wake the cluster before a demo.
 ruff check .
 pytest
 ```
+
+## LangGraph retrieval agent
+
+Phase 4 adds a client-side LangGraph workflow. It connects to the deployed
+MCP server, decomposes a question into focused retrieval queries, retrieves
+context for each query, and synthesizes an answer grounded in that context.
+It does not start or redeploy the MCP server.
+
+Set these client-side variables (preferably in `.env`, which is ignored by
+Git):
+
+```text
+ANTHROPIC_API_KEY=your-anthropic-api-key
+MCP_SERVER_URL=https://qdrant.fastmcp.app/mcp
+```
+
+`MCP_AUTH_TOKEN` is optional. Set it only when the MCP host gives you a
+Bearer token for programmatic access. It is sent to the remote MCP server,
+not stored or used by the deployed server.
+
+```powershell
+python -m rag_ingestion.agent "How does sleep affect declarative memory?"
+```

@@ -89,17 +89,17 @@ Two reasonable options:
 
 Output of this phase: one HTTPS URL, used by both clients below.
 
-- [ ] Deploy server
-- [ ] Confirm URL is reachable and returns a valid `tools/list` response
+- [x] Deploy server
+- [x] Confirm URL is reachable and returns a valid `tools/list` response
 
 ---
 
 ## Phase 4 — Client 1: LangGraph agent (via LangChain)
 
-- [ ] Build agent with `create_agent` (LangChain v1.0, LangGraph runtime
+- [x] Build agent with `create_agent` (LangChain v1.0, LangGraph runtime
       under the hood)
 - [ ] Connect to the deployed MCP server via `langchain-mcp-adapters`
-- [ ] Implement **decompose → retrieve-per-subquestion → synthesize** —
+- [x] Implement **decompose → retrieve-per-subquestion → synthesize** —
       the concrete justification for using an agent/graph instead of a
       single tool call
 - [ ] Enable **LangSmith tracing** on the full run
