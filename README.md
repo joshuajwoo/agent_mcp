@@ -48,7 +48,7 @@ pytest
 
 ## MCP server
 
-Phase 2 exposes the indexed corpus through a single FastMCP server. It has two
+The indexed corpus is exposed through a single FastMCP server. It has two
 tools: `search_documents(query, top_k)` for semantic retrieval and
 `filter_by_metadata(title, source_split, limit)` for exact SQuAD metadata
 lookups. Both return the chunk text, article title, split, score (for search),
@@ -67,12 +67,12 @@ embedding-model initialization until the first tool call, which keeps startup
 and deployment health checks independent of a database request.
 
 The local server has no client authentication. Keep it bound to loopback during
-development; Phase 3 should add deployment-appropriate access control before
+development; deployment-appropriate access control is required before
 exposing it on the internet.
 
 ## Deploy to Prefect Horizon
 
-Prefect Horizon is the selected Phase 3 host because it is maintained by the
+Prefect Horizon is the selected host because it is maintained by the
 FastMCP team and provides managed HTTPS endpoints, authentication, and
 GitHub-driven redeployments. Before deploying, push the latest server changes
 to the repository's default branch. In Horizon, create a server from that
@@ -113,7 +113,7 @@ $env:QDRANT_API_KEY = "your-api-key"
 python -m rag_ingestion.index --max-contexts 100
 ```
 
-For the complete Phase 1 corpus, omit `--max-contexts`:
+For the complete training corpus, omit `--max-contexts`:
 
 ```powershell
 python -m rag_ingestion.index --split train --batch-size 64
@@ -133,7 +133,7 @@ pytest
 
 ## LangGraph retrieval agent
 
-Phase 4 adds a client-side LangGraph workflow. It connects to the deployed
+The client-side LangGraph workflow connects to the deployed
 MCP server, decomposes a question into focused retrieval queries, retrieves
 context for each query, and synthesizes an answer grounded in that context.
 It does not start or redeploy the MCP server.
@@ -144,12 +144,90 @@ Git):
 ```text
 ANTHROPIC_API_KEY=your-anthropic-api-key
 MCP_SERVER_URL=https://qdrant.fastmcp.app/mcp
+MCP_AUTH_MODE=oauth
+MCP_OAUTH_STORAGE_KEY=choose-a-long-random-local-secret
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=your-langsmith-api-key
+LANGSMITH_PROJECT=agent-mcp
 ```
 
-`MCP_AUTH_TOKEN` is optional. Set it only when the MCP host gives you a
-Bearer token for programmatic access. It is sent to the remote MCP server,
-not stored or used by the deployed server.
+The OAuth client requests a confidential dynamic registration so Horizon
+returns a client secret for the browser flow. If Horizon expects HTTP Basic
+authentication at the token endpoint, set
+`MCP_OAUTH_TOKEN_ENDPOINT_AUTH_METHOD=client_secret_basic`; the default is
+`client_secret_post`.
+
+OAuth tokens are stored in an encrypted local file store. Set
+`MCP_OAUTH_STORAGE_KEY` to a stable, private random value; changing it later
+will require signing in again. The default storage directory is `.oauth-v3` in
+the project; set `MCP_OAUTH_STORAGE_DIR` to override it. Windows Credential
+Manager is not used because Horizon tokens can exceed its credential-blob
+limit. Horizon currently advertises `client_secret_basic` for its dynamically
+registered client while requiring the secret in the token form body; the
+client applies this compatibility adjustment automatically.
+
+The OAuth callback binds to `127.0.0.1` by default. Set
+`MCP_OAUTH_CALLBACK_HOST` only if your local browser environment requires a
+different loopback hostname.
+
+For a Horizon server protected by OAuth, set `MCP_AUTH_MODE=oauth`. The first
+run opens a browser for Horizon sign-in and stores the resulting credentials
+locally. For a host that gives you a programmatic Bearer
+token instead, use `MCP_AUTH_MODE=bearer` and set `MCP_AUTH_TOKEN`. These are
+client-side credentials only; they are never stored or used by the deployed
+server.
+
+If Horizon's **Connect** panel provides a pre-registered OAuth application,
+also set these client-side variables. Do not replace these with your Qdrant or
+Anthropic API keys.
+
+```text
+MCP_OAUTH_CLIENT_ID=...
+MCP_OAUTH_CLIENT_SECRET=...
+```
 
 ```powershell
 python -m rag_ingestion.agent "How does sleep affect declarative memory?"
 ```
+
+To verify the OAuth connection before making an Anthropic request, run:
+
+```powershell
+python -m rag_ingestion.oauth_probe
+```
+
+### LangSmith tracing
+
+LangGraph and LangChain automatically emit traces when the three LangSmith
+variables above are set. Run the agent normally:
+
+```powershell
+python -m rag_ingestion.agent "How does sleep affect declarative memory?"
+```
+
+Then open the `agent-mcp` project in LangSmith. The trace should include
+the decomposition step, each MCP retrieval call, and the synthesis model call.
+Keep `LANGSMITH_API_KEY` in `.env` only; never commit it. Tracing is disabled
+when `LANGSMITH_TRACING` is unset or set to `false`.
+
+## Use with Claude Desktop
+
+After adding the Horizon server from its **Connect** page, open a new Claude
+conversation and ask a question normally. Claude will choose the retrieval
+tool automatically:
+
+```text
+What does the SQuAD corpus say about how sleep affects declarative memory?
+```
+
+For a semantic question, Claude uses `search_documents`. You can also ask it
+to look up exact metadata, for example:
+
+```text
+Show me the first five chunks from the SQuAD article titled "Memory" in the
+train split.
+```
+
+That uses `filter_by_metadata`, which matches the article title and split
+exactly. To inspect the available evidence, ask Claude to include the article
+title, source split, and retrieved text in its answer.

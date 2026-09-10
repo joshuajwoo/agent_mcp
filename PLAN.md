@@ -102,7 +102,8 @@ Output of this phase: one HTTPS URL, used by both clients below.
 - [x] Implement **decompose → retrieve-per-subquestion → synthesize** —
       the concrete justification for using an agent/graph instead of a
       single tool call
-- [ ] Enable **LangSmith tracing** on the full run
+- [x] Enable **LangSmith tracing** on the full run via LangSmith environment
+      variables documented in the README
 
 ---
 

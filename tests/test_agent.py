@@ -14,12 +14,14 @@ def test_agent_settings_read_remote_server_and_optional_bearer_token(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("MCP_SERVER_URL", "https://qdrant.fastmcp.app/mcp")
+    monkeypatch.setenv("MCP_AUTH_MODE", "bearer")
     monkeypatch.setenv("MCP_AUTH_TOKEN", "test-token")
     monkeypatch.setenv("RETRIEVAL_TOP_K", "3")
 
     settings = AgentSettings.from_environment()
 
     assert settings.mcp_server_url == "https://qdrant.fastmcp.app/mcp"
+    assert settings.mcp_auth_mode == "bearer"
     assert settings.top_k == 3
     assert _mcp_connection(settings) == {
         "squad_retrieval": {
@@ -45,6 +47,30 @@ def test_agent_settings_reject_invalid_retrieval_limit(monkeypatch: pytest.Monke
     monkeypatch.setenv("RETRIEVAL_TOP_K", "21")
     with pytest.raises(ValueError, match="RETRIEVAL_TOP_K"):
         AgentSettings.from_environment()
+
+
+def test_agent_settings_require_bearer_token_for_bearer_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MCP_SERVER_URL", "https://qdrant.fastmcp.app/mcp")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("MCP_AUTH_MODE", "bearer")
+    monkeypatch.delenv("MCP_AUTH_TOKEN", raising=False)
+
+    with pytest.raises(ValueError, match="MCP_AUTH_TOKEN"):
+        AgentSettings.from_environment().validate()
+
+
+def test_agent_settings_require_oauth_client_id_with_a_secret(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MCP_SERVER_URL", "https://qdrant.fastmcp.app/mcp")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("MCP_OAUTH_CLIENT_SECRET", "test-secret")
+    monkeypatch.delenv("MCP_OAUTH_CLIENT_ID", raising=False)
+
+    with pytest.raises(ValueError, match="MCP_OAUTH_CLIENT_ID"):
+        AgentSettings.from_environment().validate()
 
 
 def test_tool_result_conversion_preserves_text_content() -> None:

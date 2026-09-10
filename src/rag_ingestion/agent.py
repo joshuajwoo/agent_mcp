@@ -7,9 +7,13 @@ import asyncio
 import json
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TypedDict
 
 from dotenv import load_dotenv
+from fastmcp.client.auth import OAuth
+from key_value.aio.stores.disk import DiskStore
+from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
 from langchain.agents import create_agent
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -21,6 +25,11 @@ load_dotenv()
 
 DEFAULT_MODEL = "claude-sonnet-4-5"
 DEFAULT_TOP_K = 4
+OAUTH_STORAGE_DIR = Path(os.environ.get("MCP_OAUTH_STORAGE_DIR", ".oauth-v3"))
+OAUTH_STORAGE_SALT = "mcp-rag-oauth-v1"
+OAUTH_CALLBACK_HOST = os.environ.get("MCP_OAUTH_CALLBACK_HOST", "127.0.0.1")
+DEFAULT_OAUTH_TOKEN_ENDPOINT_AUTH_METHOD = "client_secret_post"
+OAUTH_TOKEN_ENDPOINT_AUTH_METHODS = {"client_secret_post", "client_secret_basic"}
 
 
 @dataclass(frozen=True)
@@ -31,6 +40,10 @@ class AgentSettings:
     mcp_auth_token: str | None
     anthropic_model: str
     top_k: int
+    mcp_auth_mode: str = "none"
+    mcp_oauth_client_id: str | None = None
+    mcp_oauth_client_secret: str | None = None
+    mcp_oauth_token_endpoint_auth_method: str = DEFAULT_OAUTH_TOKEN_ENDPOINT_AUTH_METHOD
 
     @classmethod
     def from_environment(cls) -> AgentSettings:
@@ -42,6 +55,13 @@ class AgentSettings:
             mcp_auth_token=os.environ.get("MCP_AUTH_TOKEN") or None,
             anthropic_model=os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL),
             top_k=top_k,
+            mcp_auth_mode=os.environ.get("MCP_AUTH_MODE", "none").lower(),
+            mcp_oauth_client_id=os.environ.get("MCP_OAUTH_CLIENT_ID") or None,
+            mcp_oauth_client_secret=os.environ.get("MCP_OAUTH_CLIENT_SECRET") or None,
+            mcp_oauth_token_endpoint_auth_method=os.environ.get(
+                "MCP_OAUTH_TOKEN_ENDPOINT_AUTH_METHOD",
+                DEFAULT_OAUTH_TOKEN_ENDPOINT_AUTH_METHOD,
+            ).lower(),
         )
 
     def validate(self) -> None:
@@ -51,6 +71,19 @@ class AgentSettings:
             raise ValueError("MCP_SERVER_URL must be an HTTP(S) URL")
         if not os.environ.get("ANTHROPIC_API_KEY"):
             raise ValueError("Missing required configuration: ANTHROPIC_API_KEY")
+        if self.mcp_auth_mode not in {"none", "bearer", "oauth"}:
+            raise ValueError("MCP_AUTH_MODE must be one of: none, bearer, oauth")
+        if self.mcp_auth_mode == "bearer" and not self.mcp_auth_token:
+            raise ValueError("MCP_AUTH_TOKEN is required when MCP_AUTH_MODE=bearer")
+        if self.mcp_oauth_client_secret and not self.mcp_oauth_client_id:
+            raise ValueError("MCP_OAUTH_CLIENT_ID is required when using MCP_OAUTH_CLIENT_SECRET")
+        if self.mcp_oauth_token_endpoint_auth_method not in OAUTH_TOKEN_ENDPOINT_AUTH_METHODS:
+            methods = ", ".join(sorted(OAUTH_TOKEN_ENDPOINT_AUTH_METHODS))
+            raise ValueError(
+                "MCP_OAUTH_TOKEN_ENDPOINT_AUTH_METHOD must be one of: " + methods
+            )
+        if self.mcp_auth_mode == "oauth" and not os.environ.get("MCP_OAUTH_STORAGE_KEY"):
+            raise ValueError("MCP_OAUTH_STORAGE_KEY is required when MCP_AUTH_MODE=oauth")
 
 
 class SubquestionPlan(BaseModel):
@@ -85,11 +118,42 @@ def _mcp_connection(settings: AgentSettings) -> dict[str, dict[str, object]]:
         "transport": "http",
         "url": settings.mcp_server_url,
     }
-    if settings.mcp_auth_token:
+    if settings.mcp_auth_mode == "bearer":
         connection["headers"] = {
             "Authorization": f"Bearer {settings.mcp_auth_token}",
         }
+    elif settings.mcp_auth_mode == "oauth":
+        connection["auth"] = OAuth(
+            mcp_url=settings.mcp_server_url,
+            token_storage=FernetEncryptionWrapper(
+                key_value=DiskStore(directory=OAUTH_STORAGE_DIR),
+                source_material=os.environ["MCP_OAUTH_STORAGE_KEY"],
+                salt=OAUTH_STORAGE_SALT,
+            ),
+            client_id=settings.mcp_oauth_client_id,
+            client_secret=settings.mcp_oauth_client_secret,
+            callback_host=OAUTH_CALLBACK_HOST,
+            additional_client_metadata={
+                "token_endpoint_auth_method": settings.mcp_oauth_token_endpoint_auth_method,
+            },
+        )
+        _force_horizon_token_auth_method(
+            connection["auth"], settings.mcp_oauth_token_endpoint_auth_method
+        )
     return {"squad_retrieval": connection}
+
+
+def _force_horizon_token_auth_method(auth: OAuth, token_endpoint_auth_method: str) -> None:
+    """Force Horizon's token request format after client metadata is loaded."""
+
+    original_prepare_token_auth = auth.context.prepare_token_auth
+
+    def prepare_token_auth(data: dict[str, str], headers: dict[str, str] | None = None):
+        if auth.context.client_info and auth.context.client_info.client_secret:
+            auth.context.client_info.token_endpoint_auth_method = token_endpoint_auth_method
+        return original_prepare_token_auth(data, headers)
+
+    auth.context.prepare_token_auth = prepare_token_auth
 
 
 def _tool_result_to_text(result: object) -> str:
@@ -167,7 +231,7 @@ async def build_retrieval_agent(settings: AgentSettings | None = None) -> object
 
 
 async def answer_question(question: str, settings: AgentSettings | None = None) -> str:
-    """Run the Phase 4 workflow and return its grounded answer."""
+    """Run the retrieval workflow and return its grounded answer."""
     if not question.strip():
         raise ValueError("question must not be empty")
     agent = await build_retrieval_agent(settings)
