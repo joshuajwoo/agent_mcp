@@ -9,12 +9,15 @@ import os
 from dataclasses import dataclass
 from typing import TypedDict
 
+from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
+
+load_dotenv()
 
 DEFAULT_MODEL = "claude-sonnet-4-5"
 DEFAULT_TOP_K = 4
