@@ -23,7 +23,7 @@ from langsmith import Client as LangSmithClient
 from langsmith import tracing_context
 from pydantic import BaseModel, Field
 
-load_dotenv()
+load_dotenv(override=True)
 
 LANGSMITH_TRACING_ENABLED = os.environ.get("LANGSMITH_TRACING", "").lower() in {
     "true",
@@ -31,6 +31,10 @@ LANGSMITH_TRACING_ENABLED = os.environ.get("LANGSMITH_TRACING", "").lower() in {
     "yes",
 }
 if LANGSMITH_TRACING_ENABLED:
+    # The environment hook creates its own LangChainTracer before the
+    # invocation context is applied. Disable that duplicate hook in-process;
+    # tracing_context below remains the modern, workspace-aware integration.
+    os.environ["LANGSMITH_TRACING"] = "false"
     # LangChain's callback manager still reads the legacy project variable;
     # keep it aligned with the LangSmith project so implicit runs are routed
     # to the workspace where the key has access.
@@ -43,6 +47,7 @@ if LANGSMITH_TRACING_ENABLED:
     # 403 even though ordinary LangSmith run writes are authorized.
     LANGSMITH_CLIENT = LangSmithClient(
         api_url=os.environ.get("LANGSMITH_ENDPOINT"),
+        api_key=os.environ.get("LANGSMITH_API_KEY"),
         workspace_id=os.environ.get("LANGSMITH_WORKSPACE_ID") or None,
         auto_batch_tracing=False,
     )
