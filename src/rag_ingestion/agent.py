@@ -19,9 +19,37 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.graph import END, START, StateGraph
+from langsmith import Client as LangSmithClient
+from langsmith import configure as configure_langsmith
 from pydantic import BaseModel, Field
 
 load_dotenv()
+
+LANGSMITH_TRACING_ENABLED = os.environ.get("LANGSMITH_TRACING", "").lower() in {
+    "true",
+    "1",
+    "yes",
+}
+if LANGSMITH_TRACING_ENABLED:
+    # LangChain's callback manager still reads the legacy project variable;
+    # keep it aligned with the LangSmith project so implicit runs are routed
+    # to the workspace where the key has access.
+    os.environ.setdefault(
+        "LANGCHAIN_PROJECT",
+        os.environ.get("LANGSMITH_PROJECT", "default"),
+    )
+    # Keep LangChain's implicit tracing enabled, but give its global client a
+    # non-batched transport. Horizon currently rejects /runs/multipart with
+    # 403 even though ordinary LangSmith run writes are authorized.
+    configure_langsmith(
+        client=LangSmithClient(
+            api_url=os.environ.get("LANGSMITH_ENDPOINT"),
+            workspace_id=os.environ.get("LANGSMITH_WORKSPACE_ID") or None,
+            auto_batch_tracing=False,
+        ),
+        enabled=True,
+        project_name=os.environ.get("LANGSMITH_PROJECT", "default"),
+    )
 
 DEFAULT_MODEL = "claude-sonnet-4-5"
 DEFAULT_TOP_K = 4
