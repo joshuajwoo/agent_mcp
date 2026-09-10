@@ -20,7 +20,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.graph import END, START, StateGraph
 from langsmith import Client as LangSmithClient
-from langsmith import configure as configure_langsmith
+from langsmith import tracing_context
 from pydantic import BaseModel, Field
 
 load_dotenv()
@@ -41,15 +41,13 @@ if LANGSMITH_TRACING_ENABLED:
     # Keep LangChain's implicit tracing enabled, but give its global client a
     # non-batched transport. Horizon currently rejects /runs/multipart with
     # 403 even though ordinary LangSmith run writes are authorized.
-    configure_langsmith(
-        client=LangSmithClient(
-            api_url=os.environ.get("LANGSMITH_ENDPOINT"),
-            workspace_id=os.environ.get("LANGSMITH_WORKSPACE_ID") or None,
-            auto_batch_tracing=False,
-        ),
-        enabled=True,
-        project_name=os.environ.get("LANGSMITH_PROJECT", "default"),
+    LANGSMITH_CLIENT = LangSmithClient(
+        api_url=os.environ.get("LANGSMITH_ENDPOINT"),
+        workspace_id=os.environ.get("LANGSMITH_WORKSPACE_ID") or None,
+        auto_batch_tracing=False,
     )
+else:
+    LANGSMITH_CLIENT = None
 
 DEFAULT_MODEL = "claude-sonnet-4-5"
 DEFAULT_TOP_K = 4
@@ -263,7 +261,15 @@ async def answer_question(question: str, settings: AgentSettings | None = None) 
     if not question.strip():
         raise ValueError("question must not be empty")
     agent = await build_retrieval_agent(settings)
-    result = await agent.ainvoke({"question": question})
+    if LANGSMITH_CLIENT is None:
+        result = await agent.ainvoke({"question": question})
+    else:
+        with tracing_context(
+            enabled=True,
+            client=LANGSMITH_CLIENT,
+            project_name=os.environ.get("LANGSMITH_PROJECT", "default"),
+        ):
+            result = await agent.ainvoke({"question": question})
     return str(result["answer"])
 
 
