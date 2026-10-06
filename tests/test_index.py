@@ -20,10 +20,12 @@ def test_indexing_upserts_qdrant_compatible_points() -> None:
         build_index_documents(
             [
                 SourceDocument(
-                    document_id="squad-example",
+                    document_id="philosophy-example",
                     title="Example",
                     context="First sentence. Second sentence.",
                     source_split="train",
+                    dataset="philosophy",
+                    metadata={"domain": "philosophy"},
                 )
             ],
             max_words=10,

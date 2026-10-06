@@ -24,10 +24,12 @@ def _retriever() -> QdrantRetriever:
         build_index_documents(
             [
                 SourceDocument(
-                    document_id="squad-example",
+                    document_id="philosophy-example",
                     title="Example",
                     context="First fact. Second fact.",
                     source_split="train",
+                    dataset="philosophy",
+                    metadata={"domain": "philosophy"},
                 )
             ],
             max_words=10,
@@ -48,6 +50,7 @@ def test_retriever_searches_and_filters_qdrant_payloads() -> None:
     assert search_results[0].title == "Example"
     assert search_results[0].score >= 0
     assert filtered_results[0].source_split == "train"
+    assert search_results[0].dataset == "philosophy"
 
 
 def test_mcp_server_exposes_the_retrieval_tools() -> None:

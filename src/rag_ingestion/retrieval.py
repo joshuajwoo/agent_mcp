@@ -24,6 +24,9 @@ class RetrievalResult:
     document_id: str
     title: str
     source_split: str
+    dataset: str
+    domain: str
+    tradition: str | None
     text: str
     score: float
     chunk_start_char: int
@@ -35,6 +38,9 @@ class RetrievalResult:
             "document_id": self.document_id,
             "title": self.title,
             "source_split": self.source_split,
+            "dataset": self.dataset,
+            "domain": self.domain,
+            "tradition": self.tradition,
             "text": self.text,
             "score": self.score,
             "chunk_start_char": self.chunk_start_char,
@@ -42,7 +48,13 @@ class RetrievalResult:
         }
 
 
-def _metadata_filter(title: str | None, source_split: str | None) -> models.Filter | None:
+def _metadata_filter(
+    title: str | None,
+    source_split: str | None,
+    dataset: str | None = None,
+    domain: str | None = None,
+    tradition: str | None = None,
+) -> models.Filter | None:
     conditions: list[models.FieldCondition] = []
     if title:
         conditions.append(models.FieldCondition(key="title", match=models.MatchValue(value=title)))
@@ -50,6 +62,11 @@ def _metadata_filter(title: str | None, source_split: str | None) -> models.Filt
         conditions.append(
             models.FieldCondition(key="source_split", match=models.MatchValue(value=source_split))
         )
+    for field_name, value in (("dataset", dataset), ("domain", domain), ("tradition", tradition)):
+        if value:
+            conditions.append(
+                models.FieldCondition(key=field_name, match=models.MatchValue(value=value))
+            )
     return models.Filter(must=conditions) if conditions else None
 
 
@@ -82,6 +99,9 @@ class QdrantRetriever:
         *,
         title: str | None = None,
         source_split: str | None = None,
+        dataset: str | None = None,
+        domain: str | None = None,
+        tradition: str | None = None,
     ) -> list[RetrievalResult]:
         if not query.strip():
             raise ValueError("query must not be empty")
@@ -91,22 +111,29 @@ class QdrantRetriever:
         hits = self._client.query_points(
             collection_name=self._collection_name,
             query=vector,
-            query_filter=_metadata_filter(title, source_split),
+            query_filter=_metadata_filter(title, source_split, dataset, domain, tradition),
             with_payload=True,
             limit=top_k,
         ).points
         return [_result_from_payload(hit.payload, float(hit.score)) for hit in hits]
 
     def filter_by_metadata(
-        self, *, title: str | None, source_split: str | None, limit: int
+        self,
+        *,
+        title: str | None,
+        source_split: str | None,
+        dataset: str | None = None,
+        domain: str | None = None,
+        tradition: str | None = None,
+        limit: int,
     ) -> list[RetrievalResult]:
-        if not title and not source_split:
-            raise ValueError("provide title or source_split")
+        if not any((title, source_split, dataset, domain, tradition)):
+            raise ValueError("provide at least one metadata filter")
         if not 1 <= limit <= 100:
             raise ValueError("limit must be between 1 and 100")
         points, _ = self._client.scroll(
             collection_name=self._collection_name,
-            scroll_filter=_metadata_filter(title, source_split),
+            scroll_filter=_metadata_filter(title, source_split, dataset, domain, tradition),
             with_payload=True,
             with_vectors=False,
             limit=limit,
@@ -134,6 +161,9 @@ def _result_from_payload(payload: dict[str, object] | None, score: float) -> Ret
         document_id=str(payload["document_id"]),
         title=str(payload["title"]),
         source_split=str(payload["source_split"]),
+        dataset=str(payload.get("dataset", "unknown")),
+        domain=str(payload.get("domain", "unknown")),
+        tradition=str(payload["tradition"]) if payload.get("tradition") else None,
         text=str(payload["text"]),
         score=score,
         chunk_start_char=int(payload["chunk_start_char"]),

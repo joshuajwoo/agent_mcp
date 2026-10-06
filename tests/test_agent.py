@@ -24,7 +24,7 @@ def test_agent_settings_read_remote_server_and_optional_bearer_token(
     assert settings.mcp_auth_mode == "bearer"
     assert settings.top_k == 3
     assert _mcp_connection(settings) == {
-        "squad_retrieval": {
+        "source_retrieval": {
             "transport": "http",
             "url": "https://qdrant.fastmcp.app/mcp",
             "headers": {"Authorization": "Bearer test-token"},
@@ -89,7 +89,7 @@ def test_build_retrieval_agent_constructs_decompose_retrieve_synthesize_graph(
             pass
 
         async def get_tools(self, *, server_name: str) -> list[FakeSearchTool]:
-            assert server_name == "squad_retrieval"
+            assert server_name == "source_retrieval"
             return [FakeSearchTool()]
 
     monkeypatch.setattr("rag_ingestion.agent.MultiServerMCPClient", FakeMcpClient)

@@ -1,4 +1,4 @@
-"""Command-line SQuAD-to-Qdrant indexing workflow."""
+"""Command-line corpus-profile-to-Qdrant indexing workflow."""
 
 from __future__ import annotations
 
@@ -10,7 +10,12 @@ from qdrant_client import QdrantClient, models
 from sentence_transformers import SentenceTransformer
 
 from rag_ingestion.config import Settings
-from rag_ingestion.dataset import IndexDocument, build_index_documents, load_squad_contexts
+from rag_ingestion.dataset import (
+    DATASET_PROFILES,
+    IndexDocument,
+    build_index_documents,
+    load_documents,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -39,7 +44,7 @@ def ensure_collection(client: QdrantClient, collection_name: str, vector_size: i
                 f"with {vector_size}. "
                 "Set QDRANT_COLLECTION to a new name rather than overwriting it."
             )
-    for field_name in ("title", "source_split"):
+    for field_name in ("dataset", "domain", "tradition", "title", "source_split"):
         client.create_payload_index(
             collection_name=collection_name,
             field_name=field_name,
@@ -73,8 +78,16 @@ def index_documents(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Index SQuAD v1 contexts in Qdrant Cloud.")
-    parser.add_argument("--split", choices=("train", "validation"), default="train")
+    parser = argparse.ArgumentParser(
+        description="Index attributed text-corpus profiles in Qdrant Cloud."
+    )
+    parser.add_argument(
+        "--dataset",
+        choices=(*DATASET_PROFILES, "all"),
+        default="all",
+        help="Corpus profile to index. 'all' applies --max-contexts independently to each profile.",
+    )
+    parser.add_argument("--split", choices=("train",), default="train")
     parser.add_argument("--max-contexts", type=int, help="Limit unique contexts for a smoke test.")
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--max-words", type=int, default=220)
@@ -97,14 +110,18 @@ def main() -> None:
     if args.batch_size <= 0:
         raise ValueError("--batch-size must be positive")
 
-    sources = load_squad_contexts(args.split, args.max_contexts)
+    sources = load_documents(args.dataset, args.split, args.max_contexts)
     documents = list(
         build_index_documents(
             sources, max_words=args.max_words, overlap_words=args.overlap_words
         )
     )
     LOGGER.info(
-        "Prepared %s chunks from %s unique %s contexts", len(documents), len(sources), args.split
+        "Prepared %s chunks from %s unique %s %s contexts",
+        len(documents),
+        len(sources),
+        args.dataset,
+        args.split,
     )
     if args.dry_run:
         return

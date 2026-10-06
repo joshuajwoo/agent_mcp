@@ -1,4 +1,4 @@
-"""Streamable HTTP MCP server exposing Qdrant-backed SQuAD retrieval."""
+"""Streamable HTTP MCP server exposing attributed, multi-corpus retrieval."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ def create_server(
     retriever_factory: Callable[[], QdrantRetriever] = QdrantRetriever.from_environment,
 ) -> FastMCP:
     """Build the MCP server without opening Qdrant until a tool is invoked."""
-    mcp = FastMCP("SQuAD Retrieval")
+    mcp = FastMCP("Philosophy, Ethics & Theology Retrieval")
     retriever: QdrantRetriever | None = None
 
     def get_retriever() -> QdrantRetriever:
@@ -24,22 +24,37 @@ def create_server(
         return retriever
 
     @mcp.tool
-    def search_documents(query: str, top_k: int = 5) -> dict[str, object]:
-        """Find semantically relevant SQuAD context chunks for a question."""
-        results = get_retriever().search(query, top_k)
+    def search_documents(
+        query: str, top_k: int = 5, dataset: str | None = None, domain: str | None = None
+    ) -> dict[str, object]:
+        """Find attributed source chunks; optionally limit results to a corpus or domain."""
+        results = get_retriever().search(query, top_k, dataset=dataset, domain=domain)
         return {"query": query, "results": [result.to_dict() for result in results]}
 
     @mcp.tool
     def filter_by_metadata(
-        title: str | None = None, source_split: str | None = None, limit: int = 10
+        title: str | None = None,
+        source_split: str | None = None,
+        dataset: str | None = None,
+        domain: str | None = None,
+        tradition: str | None = None,
+        limit: int = 10,
     ) -> dict[str, object]:
-        """List chunks by exact SQuAD article title and/or train/validation split."""
+        """List chunks by exact source metadata, including corpus and tradition when present."""
         results = get_retriever().filter_by_metadata(
-            title=title, source_split=source_split, limit=limit
+            title=title,
+            source_split=source_split,
+            dataset=dataset,
+            domain=domain,
+            tradition=tradition,
+            limit=limit,
         )
         return {
             "title": title,
             "source_split": source_split,
+            "dataset": dataset,
+            "domain": domain,
+            "tradition": tradition,
             "results": [result.to_dict() for result in results],
         }
 

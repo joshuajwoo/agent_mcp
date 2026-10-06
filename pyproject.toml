@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "mcp-rag"
 version = "0.1.0"
-description = "SQuAD ingestion and Qdrant indexing for an MCP-backed RAG agent"
+description = "Attributed philosophy, ethics, and theology ingestion for an MCP-backed RAG agent"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

@@ -16,7 +16,7 @@ class Settings:
 
     qdrant_url: str
     qdrant_api_key: str
-    collection_name: str = "squad_v1_bge_small"
+    collection_name: str = "philosophy_ethics_theology_bge_small"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
 
     @classmethod
@@ -24,7 +24,9 @@ class Settings:
         return cls(
             qdrant_url=os.environ.get("QDRANT_URL", ""),
             qdrant_api_key=os.environ.get("QDRANT_API_KEY", ""),
-            collection_name=os.environ.get("QDRANT_COLLECTION", "squad_v1_bge_small"),
+            collection_name=os.environ.get(
+                "QDRANT_COLLECTION", "philosophy_ethics_theology_bge_small"
+            ),
             embedding_model=os.environ.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5"),
         )
 

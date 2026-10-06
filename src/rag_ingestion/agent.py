@@ -138,9 +138,10 @@ question. Do not answer the question and do not add facts that were not asked.
 """
 
 SYNTHESIS_PROMPT = """Answer the user's question using only the retrieved MCP
-tool results below. State when the results do not support an answer. Cite the
-SQuAD article title in square brackets for each factual claim, such as
-[Memory]. Do not invent sources or use outside knowledge.
+tool results below. State when the results do not support an answer. Cite each
+claim with its retrieved title and dataset in square brackets, such as
+[Republic; philosophy]. Do not invent sources or use outside knowledge. Do not
+present a source's theological or ethical position as a universal consensus.
 """
 
 
@@ -171,7 +172,7 @@ def _mcp_connection(settings: AgentSettings) -> dict[str, dict[str, object]]:
         _force_horizon_token_auth_method(
             connection["auth"], settings.mcp_oauth_token_endpoint_auth_method
         )
-    return {"squad_retrieval": connection}
+    return {"source_retrieval": connection}
 
 
 def _force_horizon_token_auth_method(auth: OAuth, token_endpoint_auth_method: str) -> None:
@@ -201,7 +202,7 @@ async def build_retrieval_agent(settings: AgentSettings | None = None) -> object
     runtime_settings.validate()
 
     mcp_client = MultiServerMCPClient(_mcp_connection(runtime_settings))
-    tools = await mcp_client.get_tools(server_name="squad_retrieval")
+    tools = await mcp_client.get_tools(server_name="source_retrieval")
     search_tool = next((tool for tool in tools if tool.name == "search_documents"), None)
     if search_tool is None:
         names = ", ".join(tool.name for tool in tools)
@@ -279,7 +280,9 @@ async def answer_question(question: str, settings: AgentSettings | None = None) 
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Ask the remote SQuAD retrieval agent a question.")
+    parser = argparse.ArgumentParser(
+        description="Ask the remote source-grounded retrieval agent a question."
+    )
     parser.add_argument("question", help="Question to decompose, retrieve, and answer")
     args = parser.parse_args()
     print(asyncio.run(answer_question(args.question)))
